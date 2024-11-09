@@ -5,7 +5,7 @@ import { open } from 'sqlite';
 import backoff from 'backoff';
 import dotenv from 'dotenv';
 import { GenerativeModel, GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
-import { SchemaDict, SqlResponse, Config } from '@request/sql';
+import { SchemaDict, SqlResponse, Config, DatabaseResponse, TableDescription } from '@request/sql';
 
 dotenv.config();
 
@@ -139,12 +139,12 @@ export class SQLGenerator {
     return Object.values(schemas).join('\n\n');
   }
 
-  async showAllData(dbPath: string, dbId: string): Promise<any> {
+  async showAllData(dbPath: string, dbId: string): Promise<DatabaseResponse> {
     const db = await open({
       filename: dbPath,
       driver: sqlite3.Database
     });
-    const res: any = {
+    const res: DatabaseResponse = {
       database: dbId,
       table: []
     }
@@ -158,7 +158,7 @@ export class SQLGenerator {
         ? `\`${table.name}\``
         : table.name;
 
-      const tableInfo: any = {
+      const tableInfo: TableDescription = {
         name: table.name,
         columns: [],
         rows: []
@@ -170,7 +170,7 @@ export class SQLGenerator {
         const values = rows.map(row => Object.values(row));
         // const rowsOutput = this.niceLookTable(columnNames, values);
         tableInfo.columns = columnNames;
-        tableInfo.rows = values;
+        tableInfo.rows = values as (string | number)[][];
         res.table.push(tableInfo);
       } else {
         console.log('该表没有数据。');

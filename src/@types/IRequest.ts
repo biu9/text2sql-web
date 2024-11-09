@@ -3,9 +3,9 @@ declare module "@request/api" {
     msg: string,
     code: number
   }
-  export interface IGeneralResponse {
+  export interface IGeneralResponse<T = unknown> {
     isOk: boolean,
-    data: unknown,
+    data: T,
     msg: string,
   }
   export interface IGenerateRequest {

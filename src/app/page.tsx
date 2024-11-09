@@ -4,6 +4,7 @@ import { POST } from "@/request";
 import { useEffect, useState } from "react";
 import { IGenerateRequest, IGeneralResponse } from "@request/api";
 import { GET } from "@/request";
+import { DatabaseResponse } from "@request/sql";
 
 export default function Home() {
 
@@ -11,7 +12,7 @@ export default function Home() {
 
   useEffect(() => {
     (async () => {
-      const response = await GET<IGeneralResponse>('/api/showTable');
+      const response = await GET<IGeneralResponse<DatabaseResponse[]>>('/api/showTable');
       console.log(response);
     })()
   }, [])

@@ -26,4 +26,15 @@ declare module "@request/sql" {
   export interface SqlResponse {
     [key: number]: string;
   }
+
+  export interface DatabaseResponse {
+    database: string;
+    table: Array<TableDescription>
+  }
+
+  export interface TableDescription {
+    name: string;
+    columns: string[];
+    rows: (string | number)[][];
+  }
 }
