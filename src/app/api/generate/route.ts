@@ -6,11 +6,14 @@ import path from "path";
 import { EvalData } from "./types";
 import fs from 'fs/promises';
 
-const eval_path = './data/dev_mini.json';
-const db_root_path = './data/dev_databases/';
+// const eval_path = '../generate/data/dev_mini.json';
+const eval_path = path.join(process.cwd(),'public' ,'data/dev_mini.json');
+// const db_root_path = '../generate/data/dev_databases';
+const db_root_path = path.join(process.cwd(), 'public', 'data/dev_databases');
 const use_knowledge = false;
 
 export async function POST(request: NextRequest): Promise<NextResponse<IGeneralResponse>> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { question } = await request.json() as IGenerateRequest;
 
   const generator = new SQLGenerator({
