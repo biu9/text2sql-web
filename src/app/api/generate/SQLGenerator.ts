@@ -2,10 +2,10 @@ import fs from 'fs/promises';
 import path from 'path';
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
-import OpenAI from "openai";
 import backoff from 'backoff';
 import { Config, SchemaDict, SqlResponse } from './types';
 import dotenv from 'dotenv';
+import { GenerativeModel, GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
 dotenv.config();
 
@@ -18,15 +18,30 @@ EXAMPLE JSON OUTPUT:
 }
 `
 
+const genAi = new GoogleGenerativeAI(process.env.API_KEY!);
+
+const model = genAi.getGenerativeModel({
+  model: "gemini-1.5-flash", generationConfig: {
+    temperature: 0,
+    responseMimeType: 'application/json',
+    responseSchema: {
+      type: SchemaType.OBJECT,
+      properties: {
+        sql: {
+          type: SchemaType.STRING,
+          description: system_prompt
+        }
+      }
+    }
+  }
+});
+
 export class SQLGenerator {
-  private openai: OpenAI;
+  private gemini: GenerativeModel;
   private engine: string;
 
   constructor(config: Config) {
-    this.openai = new OpenAI({
-      baseURL: 'https://api.deepseek.com',
-      apiKey: process.env.API_KEY
-    });
+    this.gemini = model;
 
     this.engine = config.engine;
   }
@@ -150,18 +165,11 @@ export class SQLGenerator {
 
       exponentialBackoff.on('ready', async () => {
         try {
-          const completion = await this.openai.chat.completions.create({
-            messages: [{ role: 'system', content: system_prompt }, { role: "user", content: prompt }],
-            model: this.engine,
-            temperature: 0,
-            response_format: {
-              'type': 'json_object'
-            }
-          });
-          resolve(completion.choices[0].message.content);
+          const completion = await model.generateContent(prompt);
+          resolve(completion.response.text());
           exponentialBackoff.reset();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (error: any) {
+        } catch (error: any) { // FIXME
           if ((error).response?.status === 429) {
             exponentialBackoff.backoff();
           } else {
