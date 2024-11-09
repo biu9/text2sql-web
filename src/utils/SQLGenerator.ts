@@ -3,9 +3,9 @@ import path from 'path';
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import backoff from 'backoff';
-import { Config, SchemaDict, SqlResponse } from './types';
 import dotenv from 'dotenv';
 import { GenerativeModel, GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { SchemaDict, SqlResponse, Config } from '@request/sql';
 
 dotenv.config();
 
@@ -18,31 +18,27 @@ EXAMPLE JSON OUTPUT:
 }
 `
 
-const genAi = new GoogleGenerativeAI(process.env.API_KEY!);
-
-const model = genAi.getGenerativeModel({
-  model: "gemini-1.5-flash", generationConfig: {
-    temperature: 0,
-    responseMimeType: 'application/json',
-    responseSchema: {
-      type: SchemaType.OBJECT,
-      properties: {
-        sql: {
-          type: SchemaType.STRING,
-          description: system_prompt
-        }
-      }
-    }
-  }
-});
-
 export class SQLGenerator {
   private gemini: GenerativeModel;
   private engine: string;
 
   constructor(config: Config) {
-    this.gemini = model;
-
+    const genAi = new GoogleGenerativeAI(process.env.API_KEY!);
+    this.gemini = genAi.getGenerativeModel({
+      model: "gemini-1.5-flash", generationConfig: {
+        temperature: 0,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: SchemaType.OBJECT,
+          properties: {
+            sql: {
+              type: SchemaType.STRING,
+              description: system_prompt
+            }
+          }
+        }
+      }
+    });
     this.engine = config.engine;
   }
 
@@ -143,6 +139,49 @@ export class SQLGenerator {
     return Object.values(schemas).join('\n\n');
   }
 
+  async showAllData(dbPath: string, dbId: string): Promise<any> {
+    const db = await open({
+      filename: dbPath,
+      driver: sqlite3.Database
+    });
+    const res: any = {
+      database: dbId,
+      table: []
+    }
+  
+    const tables = await db.all<{ name: string }[]>("SELECT name FROM sqlite_master WHERE type='table'");
+  
+    for (const table of tables) {
+      if (table.name === 'sqlite_sequence') continue;
+  
+      const curTable = ['order', 'by', 'group'].includes(table.name)
+        ? `\`${table.name}\``
+        : table.name;
+
+      const tableInfo: any = {
+        name: table.name,
+        columns: [],
+        rows: []
+      }
+    
+      const rows = await db.all(`SELECT * FROM ${curTable}`);
+      if (rows.length > 0) {
+        const columnNames = Object.keys(rows[0]);
+        const values = rows.map(row => Object.values(row));
+        // const rowsOutput = this.niceLookTable(columnNames, values);
+        tableInfo.columns = columnNames;
+        tableInfo.rows = values;
+        res.table.push(tableInfo);
+      } else {
+        console.log('该表没有数据。');
+      }
+    }
+  
+    await db.close();
+
+    return res;
+  }
+
   generateCommentPrompt(question: string, knowledge: string | null = null): string {
     const patternPromptNoKg = "-- Using valid SQLite, answer the following questions for the tables provided above.";
     const patternPromptKg = "-- Using valid SQLite and understanding External Knowledge, answer the following questions for the tables provided above.";
@@ -165,7 +204,7 @@ export class SQLGenerator {
 
       exponentialBackoff.on('ready', async () => {
         try {
-          const completion = await model.generateContent(prompt);
+          const completion = await this.gemini.generateContent(prompt);
           resolve(completion.response.text());
           exponentialBackoff.reset();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

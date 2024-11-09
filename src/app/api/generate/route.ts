@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
 import { IGeneralResponse, IGenerateRequest } from "@request/api";
-import { SQLGenerator } from "./SQLGenerator";
+import { SQLGenerator } from "../../../utils/SQLGenerator";
 import path from "path";
-import { EvalData } from "./types";
 import fs from 'fs/promises';
+import { EvalData } from "@request/sql";
 
-// const eval_path = '../generate/data/dev_mini.json';
 const eval_path = path.join(process.cwd(),'public' ,'data/dev_mini.json');
-// const db_root_path = '../generate/data/dev_databases';
 const db_root_path = path.join(process.cwd(), 'public', 'data/dev_databases');
 const use_knowledge = false;
 

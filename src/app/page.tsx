@@ -1,12 +1,20 @@
 'use client';
 import { Button, TextField } from "@mui/material";
 import { POST } from "@/request";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { IGenerateRequest, IGeneralResponse } from "@request/api";
+import { GET } from "@/request";
 
 export default function Home() {
 
   const [question, setQuestion] = useState<string>('');
+
+  useEffect(() => {
+    (async () => {
+      const response = await GET<IGeneralResponse>('/api/showTable');
+      console.log(response);
+    })()
+  }, [])
 
   const handleGenerate = async () => {
     const response = await POST<IGenerateRequest, IGeneralResponse>('/api/generate', { question });
