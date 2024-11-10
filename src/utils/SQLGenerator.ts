@@ -26,7 +26,6 @@ export class SQLGenerator {
     const genAi = new GoogleGenerativeAI(process.env.API_KEY!);
     this.gemini = genAi.getGenerativeModel({
       model: "gemini-1.5-flash", generationConfig: {
-        temperature: 0,
         responseMimeType: 'application/json',
         responseSchema: {
           type: SchemaType.OBJECT,
@@ -241,6 +240,8 @@ export class SQLGenerator {
           questionList[i],
           knowledgeList ? knowledgeList[i] : null
         );
+      
+      console.log(`the prompt is: ${prompt}`);
 
       try {
         const result = await this.connectGPT(prompt);

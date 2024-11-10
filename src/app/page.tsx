@@ -11,6 +11,8 @@ export default function Home() {
 
   const [question, setQuestion] = useState<string>('');
   const [data, setData] = useState<DatabaseResponse[]>([]);
+  const [sql, setSql] = useState<string>('');
+  const [executeResult, setExecuteResult] = useState<unknown[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -20,7 +22,10 @@ export default function Home() {
   }, [])
 
   const handleGenerate = async () => {
-    const response = await POST<IGenerateRequest, IGeneralResponse>('/api/generate', { question });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const response = await POST<IGenerateRequest, IGeneralResponse<any>>('/api/generate', { question });
+    setSql(response.data.sql);
+    setExecuteResult(response.data.executeResult);
     console.log(response);
   }
 
@@ -36,6 +41,16 @@ export default function Home() {
           onClick={handleGenerate}
           variant="contained">确认</Button>
       </div>
+      <Paper className="w-[1200px] p-5 my-10">
+        <div className="flex">
+          <div className="font-bold text-2xl">sql from llm: </div>
+          <div>{sql}</div>
+        </div>
+        <div className="flex">
+          <div className="font-bold text-2xl">execute result: </div>
+          <div>{JSON.stringify(executeResult)}</div>
+        </div>
+      </Paper>
       {/* 数据展示部分 */}
       <div>
         {data.map((dbItem, dbIndex) => (
