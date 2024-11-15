@@ -1,5 +1,5 @@
 'use client';
-import { Button, TextField, Typography } from "@mui/material";
+import { Button, Collapse, TextField, Typography } from "@mui/material";
 import { POST } from "@/request";
 import { useEffect, useState } from "react";
 import { IGenerateRequest, IGeneralResponse } from "@request/api";
@@ -14,6 +14,7 @@ export default function Home() {
   const [sql, setSql] = useState<string>('');
   const [executeResult, setExecuteResult] = useState<unknown[]>([]);
   const [visualization, setVisualization] = useState<LLMResponse['visualization'] | null>(null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -38,20 +39,25 @@ export default function Home() {
         <TextField
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
+          fullWidth
+          style={{ width: 1000 }}
           label="输入问题" variant="standard" />
         <Button
           onClick={handleGenerate}
           variant="contained">确认</Button>
       </div>
       <Paper className="w-[1200px] p-5 my-10">
-        <div className="flex">
-          <div className="font-bold text-2xl">sql from llm: </div>
-          <div>{sql}</div>
-        </div>
-        <div className="flex">
-          <div className="font-bold text-2xl">execute result: </div>
-          <div>{JSON.stringify(executeResult)}</div>
-        </div>
+        <Button onClick={() => setOpen(!open)}>{open ? '收起' : '展开'}</Button>
+        <Collapse in={open}>
+          <div className="flex">
+            <div className="font-bold text-2xl">sql from llm: </div>
+            <div>{sql}</div>
+          </div>
+          <div className="flex">
+            <div className="font-bold text-2xl">execute result: </div>
+            <div>{JSON.stringify(executeResult)}</div>
+          </div>
+        </Collapse>
       </Paper>
       {/** 数据可视化部分 */}
       <div>
