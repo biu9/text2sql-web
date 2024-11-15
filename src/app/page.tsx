@@ -4,7 +4,7 @@ import { POST } from "@/request";
 import { useEffect, useState } from "react";
 import { IGenerateRequest, IGeneralResponse } from "@request/api";
 import { GET } from "@/request";
-import { DatabaseResponse } from "@request/sql";
+import { DatabaseResponse, LLMResponse } from "@request/sql";
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
 
 export default function Home() {
@@ -13,6 +13,7 @@ export default function Home() {
   const [data, setData] = useState<DatabaseResponse[]>([]);
   const [sql, setSql] = useState<string>('');
   const [executeResult, setExecuteResult] = useState<unknown[]>([]);
+  const [visualization, setVisualization] = useState<LLMResponse['visualization'] | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -26,6 +27,7 @@ export default function Home() {
     const response = await POST<IGenerateRequest, IGeneralResponse<any>>('/api/generate', { question });
     setSql(response.data.sql);
     setExecuteResult(response.data.executeResult);
+    setVisualization(response.data.responseJson.visualization);
     console.log(response);
   }
 
@@ -51,6 +53,14 @@ export default function Home() {
           <div>{JSON.stringify(executeResult)}</div>
         </div>
       </Paper>
+      {/** 数据可视化部分 */}
+      <div>
+        {
+          visualization && visualization.type === 'table' && (
+            <TableDisplay columns={visualization.columns} data={executeResult as Record<string, string | number>[]} />
+          )
+        }
+      </div>
       {/* 数据展示部分 */}
       <div>
         {data.map((dbItem, dbIndex) => (
@@ -90,4 +100,35 @@ export default function Home() {
       </div>
     </div>
   );
+}
+
+const TableDisplay = ({
+  columns,
+  data
+}: {
+  columns: LLMResponse['visualization']['columns'],
+  data: Record<string, string | number>[]
+}) => {
+  return (
+    <TableContainer component={Paper} style={{ maxHeight: 400, maxWidth: 1200 }}>
+      <Table stickyHeader>
+        <TableHead>
+          <TableRow>
+            {columns.map((col, colIndex) => (
+              <TableCell key={colIndex}>{col.name}</TableCell>
+            ))}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {data.map((row, rowIndex) => (
+            <TableRow key={rowIndex}>
+              {columns.map((col, colIndex) => (
+                <TableCell key={colIndex}>{row[col.dataIndex]}</TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  )
 }

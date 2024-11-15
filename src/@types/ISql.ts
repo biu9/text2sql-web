@@ -37,4 +37,15 @@ declare module "@request/sql" {
     columns: string[];
     rows: (string | number)[][];
   }
+
+  export type LLMResponse = {
+    sql: string,
+    visualization: {
+      type: string,
+      columns: {
+        dataIndex: string,
+        name: string
+      }[]
+    }
+  }
 }

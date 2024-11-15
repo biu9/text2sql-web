@@ -5,18 +5,27 @@ import { open } from 'sqlite';
 import backoff from 'backoff';
 import dotenv from 'dotenv';
 import { GenerativeModel, GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
-import { SchemaDict, SqlResponse, Config, DatabaseResponse, TableDescription } from '@request/sql';
+import { SchemaDict, SqlResponse, Config, DatabaseResponse, TableDescription, LLMResponse } from '@request/sql';
 
 dotenv.config();
 
 const system_prompt = `
-Using valid SQLite, answer the following questions for the tables provided above.
+Using valid SQLite, answer the following questions for the tables provided above. 
+Additionally, determine the best way to visualize the result: "table", "chart", or "text". 
+If the result is suitable for a table, provide the table's column definitions with their "dataIndex" and "name".
 
 EXAMPLE JSON OUTPUT:
 {
   "sql": "SELECT * FROM table_name WHERE column_name = 'value';",
+  "visualization": {
+    "type": "table",
+    "columns": [
+      { "dataIndex": "column1", "name": "Column 1" },
+      { "dataIndex": "column2", "name": "Column 2" }
+    ]
+  }
 }
-`
+`;
 
 export class SQLGenerator {
   private gemini: GenerativeModel;
@@ -25,7 +34,8 @@ export class SQLGenerator {
   constructor(config: Config) {
     const genAi = new GoogleGenerativeAI(process.env.API_KEY!);
     this.gemini = genAi.getGenerativeModel({
-      model: "gemini-1.5-flash", generationConfig: {
+      model: "gemini-1.5-flash",
+      generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: {
           type: SchemaType.OBJECT,
@@ -33,8 +43,39 @@ export class SQLGenerator {
             sql: {
               type: SchemaType.STRING,
               description: system_prompt
+            },
+            visualization: {
+              type: SchemaType.OBJECT,
+              description: "Details about how to visualize the result",
+              properties: {
+                type: {
+                  type: SchemaType.STRING,
+                  enum: ["table", "chart", "text"],
+                  description: "The recommended visualization type"
+                },
+                columns: {
+                  type: SchemaType.ARRAY,
+                  items: {
+                    type: SchemaType.OBJECT,
+                    properties: {
+                      dataIndex: {
+                        type: SchemaType.STRING,
+                        description: "The key for the table column"
+                      },
+                      name: {
+                        type: SchemaType.STRING,
+                        description: "The display name for the table column"
+                      }
+                    },
+                    required: ["dataIndex", "name"]
+                  },
+                  description: "Column definitions for table visualization"
+                }
+              },
+              required: ["type"]
             }
-          }
+          },
+          required: ["sql", "visualization"]
         }
       }
     });
@@ -147,12 +188,12 @@ export class SQLGenerator {
       database: dbId,
       table: []
     }
-  
+
     const tables = await db.all<{ name: string }[]>("SELECT name FROM sqlite_master WHERE type='table'");
-  
+
     for (const table of tables) {
       if (table.name === 'sqlite_sequence') continue;
-  
+
       const curTable = ['order', 'by', 'group'].includes(table.name)
         ? `\`${table.name}\``
         : table.name;
@@ -162,7 +203,7 @@ export class SQLGenerator {
         columns: [],
         rows: []
       }
-    
+
       const rows = await db.all(`SELECT * FROM ${curTable}`);
       if (rows.length > 0) {
         const columnNames = Object.keys(rows[0]);
@@ -175,7 +216,7 @@ export class SQLGenerator {
         console.log('该表没有数据。');
       }
     }
-  
+
     await db.close();
 
     return res;
@@ -204,9 +245,10 @@ export class SQLGenerator {
       exponentialBackoff.on('ready', async () => {
         try {
           const completion = await this.gemini.generateContent(prompt);
+          console.log('the completion is: ', completion);
           resolve(completion.response.text());
           exponentialBackoff.reset();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) { // FIXME
           if ((error).response?.status === 429) {
             exponentialBackoff.backoff();
@@ -228,8 +270,8 @@ export class SQLGenerator {
     dbPathList: string[],
     questionList: string[],
     knowledgeList: string[] | null = null
-  ): Promise<string[]> {
-    const responseList: string[] = [];
+  ): Promise<LLMResponse[]> {
+    const responseList: LLMResponse[] = [];
 
     for (let i = 0; i < questionList.length; i++) {
       console.log(`--------------------- processing ${i}th question ---------------------`);
@@ -240,20 +282,26 @@ export class SQLGenerator {
           questionList[i],
           knowledgeList ? knowledgeList[i] : null
         );
-      
+
       console.log(`the prompt is: ${prompt}`);
 
       try {
-        const result = await this.connectGPT(prompt);
-        // const sql = 'SELECT' + result;
-        const sql = JSON.parse(result as string).sql;
-        const dbId = path.basename(dbPathList[i], '.sqlite');
+        const result = JSON.parse(await this.connectGPT(prompt) as string) as LLMResponse;
+        console.log(`the result is: ${result}`);
+        const sql = result.sql;
+        responseList.push({
+          ...result,
+          sql: sql
+        })
+        // const sql = JSON.parse(result as string).sql;
+        // const dbId = path.basename(dbPathList[i], '.sqlite');
         console.log(`the sql is: ${sql}`);
-        responseList.push(`${sql}\t----- bird -----\t${dbId}`);
+        // responseList.push(`${sql}\t----- bird -----\t${dbId}`);
+
       } catch (error) {
         if (error instanceof Error) {
           console.error(`Error processing question ${i}:`, error);
-          responseList.push(`ERROR: ${error.message}`);
+          // responseList.push(`ERROR: ${error.message}`);
         }
       }
     }

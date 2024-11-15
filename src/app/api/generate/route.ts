@@ -33,7 +33,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<IGeneralR
     use_knowledge ? (knowledgeList.length > 0 ? knowledgeList : null) : null
   );
 
-  const sql = responses[0].split('\t')[0];
+  const sql = responses[0].sql;
   const dbPath = dbPathList[0];
 
   const executeResult = await getSqlRes(sql, dbPath);
@@ -44,6 +44,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<IGeneralR
       data: {
         sql,
         executeResult,
+        responseJson: responses[0]
       },
       msg: "success",
     });
