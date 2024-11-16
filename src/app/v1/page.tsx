@@ -27,16 +27,25 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 
-import { GET } from "@/request";
-import { DatabaseResponse, TableSchemaDescription } from "@request/sql";
+import { GET, POST } from "@/request";
+import {
+  DatabaseResponse,
+  LLMResponse,
+  TableSchemaDescription,
+} from "@request/sql";
 import { IGeneralResponse } from "@request/api";
+import { PieChart, Pie, Cell, Legend } from "recharts";
 
 const theme = createTheme();
 
 export default function SQLGeneratorMUI() {
   const [input, setInput] = useState("");
   const [generatedSQL, setGeneratedSQL] = useState("");
-  const [queryResult, setQueryResult] = useState<any>(null);
+  const [queryResult, setQueryResult] = useState<unknown[] | null>(null);
+  const [generateResult, setGenerateResult] = useState<LLMResponse | null>(
+    null
+  );
+
   const [isLoading, setIsLoading] = useState(false);
   const [dbHost, setDbHost] = useState("");
   const [dbPort, setDbPort] = useState("");
@@ -69,34 +78,38 @@ export default function SQLGeneratorMUI() {
     })();
   }, []);
 
-  const handleGenerate = () => {
-    if (!isConnected) {
-      alert("Please connect to a database first.");
-      return;
-    }
-    setIsLoading(true);
+  const handleGenerate = async () => {
     // 模拟API调用延迟
-    setTimeout(() => {
-      setGeneratedSQL(`SELECT * FROM users WHERE name LIKE '%${input}%'`);
-      setIsLoading(false);
-    }, 1000);
+    setIsLoading(true);
+    const res = await POST<
+      { question: string },
+      IGeneralResponse<{
+        sql: string;
+        responseJson: LLMResponse;
+      }>
+    >("/api/generateSql", { question: input });
+    if (typeof res === "object") {
+      if (res.isOk) {
+        setGeneratedSQL(res.data.sql);
+        setGenerateResult(res.data.responseJson);
+        setIsLoading(false);
+      }
+    }
   };
 
-  const handleExecute = () => {
-    if (!isConnected) {
-      alert("Please connect to a database first.");
-      return;
-    }
+  const handleExecute = async () => {
     setIsLoading(true);
     // 模拟API调用延迟
-    setTimeout(() => {
-      setQueryResult([
-        { id: 1, name: "John Doe", email: "john@example.com" },
-        { id: 2, name: "Jane Smith", email: "jane@example.com" },
-        { id: 3, name: "Bob Johnson", email: "bob@example.com" },
-      ]);
-      setIsLoading(false);
-    }, 1500);
+    const res = await POST<
+      { sql: string },
+      IGeneralResponse<{ sql: string; executeResult: unknown[] }>
+    >("/api/querySql", { sql: generatedSQL });
+    if (typeof res === "object") {
+      if (res.isOk) {
+        setQueryResult(res.data.executeResult);
+        setIsLoading(false);
+      }
+    }
   };
 
   const handleTestConnection = () => {
@@ -286,7 +299,7 @@ export default function SQLGeneratorMUI() {
                   fullWidth
                   variant="contained"
                   onClick={handleGenerate}
-                  disabled={isLoading || !input || !isConnected}
+                  disabled={isLoading || !input}
                   color="primary"
                   size="large"
                 >
@@ -298,7 +311,7 @@ export default function SQLGeneratorMUI() {
                   fullWidth
                   variant="outlined"
                   onClick={handleExecute}
-                  disabled={isLoading || !generatedSQL || !isConnected}
+                  disabled={isLoading || !generatedSQL}
                   color="secondary"
                   size="large"
                 >
@@ -321,33 +334,29 @@ export default function SQLGeneratorMUI() {
             </Box>
           )}
 
-          {queryResult && (
+          {queryResult && generateResult && (
             <Box sx={{ mb: 2 }}>
               <Typography variant="h6" gutterBottom>
                 Query Results:
               </Typography>
-              <TableContainer component={Paper}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      {Object.keys(queryResult[0]).map((key) => (
-                        <TableCell key={key}>{key}</TableCell>
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {queryResult.map((row: unknown, index: number) => (
-                      <TableRow key={index}>
-                        {Object.values(row).map(
-                          (value: unknown, cellIndex: number) => (
-                            <TableCell key={cellIndex}>{value}</TableCell>
-                          )
-                        )}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              {generateResult.visualization &&
+                generateResult.visualization.type === "table" && (
+                  <TableDisplay
+                    columns={generateResult.visualization.columns}
+                    data={queryResult as Record<string, string | number>[]}
+                  />
+                )}
+              {generateResult.visualization &&
+                generateResult.visualization.type === "text" && (
+                  <TextDisplay
+                    text={JSON.stringify(queryResult[0]) as string}
+                  />
+                )}
+              {generateResult.visualization &&
+                generateResult.visualization.type === "chart" &&
+                generateResult.visualization?.chart?.chartType === "pie" && (
+                  <PieDisplay data={generateResult.visualization.chart.data} />
+                )}
             </Box>
           )}
         </Box>
@@ -355,3 +364,64 @@ export default function SQLGeneratorMUI() {
     </ThemeProvider>
   );
 }
+
+const TableDisplay = ({
+  columns,
+  data,
+}: {
+  columns: LLMResponse["visualization"]["columns"];
+  data: Record<string, string | number>[];
+}) => {
+  return (
+    <TableContainer
+      component={Paper}
+      style={{ maxHeight: 400, maxWidth: 1200 }}
+    >
+      <Table stickyHeader>
+        <TableHead>
+          <TableRow>
+            {columns.map((col, colIndex) => (
+              <TableCell key={colIndex}>{col.name}</TableCell>
+            ))}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {data.map((row, rowIndex) => (
+            <TableRow key={rowIndex}>
+              {columns.map((col, colIndex) => (
+                <TableCell key={colIndex}>{row[col.dataIndex]}</TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+};
+
+const TextDisplay = ({ text }: { text: string }) => {
+  return <div>{text}</div>;
+};
+
+const PieDisplay = ({ data }: { data: ChartDataPoint[] }) => {
+  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
+
+  return (
+    <PieChart width={400} height={400}>
+      <Pie
+        data={data}
+        dataKey="value"
+        nameKey="label"
+        cx="50%"
+        cy="50%"
+        outerRadius={150}
+        label
+      >
+        {data.map((entry, index) => (
+          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+        ))}
+      </Pie>
+      <Legend />
+    </PieChart>
+  );
+};
