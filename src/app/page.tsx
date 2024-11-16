@@ -70,7 +70,7 @@ export default function Home() {
         }
         {
           visualization && visualization.type === 'text' && (
-            <TextDisplay text={executeResult[0] as string} />
+            <TextDisplay text={JSON.stringify(executeResult[0]) as string} />
           )
         }
         {

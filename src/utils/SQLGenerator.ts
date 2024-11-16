@@ -85,7 +85,7 @@ export class SQLGenerator {
   constructor(config: Config) {
     const genAi = new GoogleGenerativeAI(process.env.API_KEY!);
     this.gemini = genAi.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-1.5-pro",
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: {
