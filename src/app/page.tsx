@@ -1,28 +1,27 @@
 'use client';
-import { Button, Collapse, TextField, Typography } from "@mui/material";
+import { Button, Collapse, TextField } from "@mui/material";
 import { POST } from "@/request";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { IGenerateRequest, IGeneralResponse } from "@request/api";
-import { GET } from "@/request";
-import { DatabaseResponse, LLMResponse } from "@request/sql";
+import { LLMResponse } from "@request/sql";
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
 import { PieChart, Pie, Cell, Legend } from "recharts";
 
 export default function Home() {
 
   const [question, setQuestion] = useState<string>('');
-  const [data, setData] = useState<DatabaseResponse[]>([]);
+  // const [data, setData] = useState<DatabaseResponse[]>([]);
   const [sql, setSql] = useState<string>('');
   const [executeResult, setExecuteResult] = useState<unknown[]>([]);
   const [visualization, setVisualization] = useState<LLMResponse['visualization'] | null>(null);
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const response = await GET<IGeneralResponse<DatabaseResponse[]>>('/api/showTable');
-      setData(response.data);
-    })()
-  }, [])
+  // useEffect(() => {
+  //   (async () => {
+  //     const response = await GET<IGeneralResponse<DatabaseResponse[]>>('/api/showTable');
+  //     setData(response.data);
+  //   })()
+  // }, [])
 
   const handleGenerate = async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,7 +79,7 @@ export default function Home() {
         }
       </div>
       {/* 数据展示部分 */}
-      <div>
+      {/* <div>
         {data.map((dbItem, dbIndex) => (
           <div key={dbIndex} style={{ marginBottom: 40 }}>
             <Typography variant="h5" gutterBottom>
@@ -115,7 +114,7 @@ export default function Home() {
             ))}
           </div>
         ))}
-      </div>
+      </div> */}
     </div>
   );
 }

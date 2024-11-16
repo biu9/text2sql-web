@@ -12,6 +12,7 @@
     "@emotion/react": "^11.13.3",
     "@emotion/styled": "^11.13.0",
     "@google/generative-ai": "^0.21.0",
+    "@mui/icons-material": "^6.1.7",
     "@mui/material": "^6.1.6",
     "backoff": "^2.5.0",
     "dotenv": "^16.4.5",

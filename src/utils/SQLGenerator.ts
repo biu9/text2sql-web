@@ -5,7 +5,7 @@ import { open } from 'sqlite';
 import backoff from 'backoff';
 import dotenv from 'dotenv';
 import { GenerativeModel, GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
-import { SchemaDict, SqlResponse, Config, DatabaseResponse, TableDescription, LLMResponse } from '@request/sql';
+import { SchemaDict, SqlResponse, Config, DatabaseResponse, TableDescription, LLMResponse, TableSchemaDescription } from '@request/sql';
 
 dotenv.config();
 
@@ -308,6 +308,52 @@ export class SQLGenerator {
 
     await db.close();
 
+    return res;
+  }
+
+  async showDatabseSchema(dbPath: string, dbId: string): Promise<DatabaseResponse<TableSchemaDescription>> {
+    const db = await open({
+      filename: dbPath,
+      driver: sqlite3.Database
+    });
+    const res: DatabaseResponse<TableSchemaDescription> = {
+      database: dbId,
+      table: []
+    }
+  
+    const tables = await db.all<{ name: string }[]>("SELECT name FROM sqlite_master WHERE type='table'");
+  
+    for (const table of tables) {
+      if (table.name === 'sqlite_sequence') continue;
+  
+      const curTable = ['order', 'by', 'group'].includes(table.name)
+        ? `\`${table.name}\``
+        : table.name;
+  
+      const tableInfo: TableSchemaDescription = {
+        tableName: table.name,
+        columns: []
+      }
+  
+      const columns = await db.all<{ name: string, type: string, notnull: number, dflt_value: string | null, pk: number }[]>(`PRAGMA table_info(${curTable})`);
+      if (columns.length > 0) {
+        tableInfo.columns = columns.map(col => ({
+          name: col.name,
+          type: col.type,
+          constraints: [
+            col.pk ? 'PRIMARY KEY' : null,
+            col.notnull ? 'NOT NULL' : null,
+            col.dflt_value ? `DEFAULT ${col.dflt_value}` : null
+          ].filter(Boolean).join(' ')
+        }));
+        res.table.push(tableInfo);
+      } else {
+        console.log('该表没有数据。');
+      }
+    }
+  
+    await db.close();
+  
     return res;
   }
 

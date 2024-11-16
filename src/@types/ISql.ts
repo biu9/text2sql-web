@@ -27,15 +27,24 @@ declare module "@request/sql" {
     [key: number]: string;
   }
 
-  export interface DatabaseResponse {
+  export interface DatabaseResponse<T = TableDescription> {
     database: string;
-    table: Array<TableDescription>
+    table: Array<T>
   }
 
   export interface TableDescription {
     name: string;
     columns: string[];
     rows: (string | number)[][];
+  }
+
+  export interface TableSchemaDescription {
+    tableName: string;
+    columns: {
+      name: string;
+      type: string;
+      constraints: string;
+    }[];
   }
 
   export type LLMResponse = {
