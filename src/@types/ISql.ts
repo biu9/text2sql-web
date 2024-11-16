@@ -45,7 +45,20 @@ declare module "@request/sql" {
       columns: {
         dataIndex: string,
         name: string
-      }[]
+      }[],
+      chart: Chart
     }
   }
+}
+
+interface ChartDataPoint {
+  label: string;
+  value: number;
+}
+
+interface Chart {
+  chartType: 'pie' | 'line';
+  data: ChartDataPoint[];
+  xAxis?: string;
+  yAxis?: string;
 }

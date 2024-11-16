@@ -6,6 +6,7 @@ import { IGenerateRequest, IGeneralResponse } from "@request/api";
 import { GET } from "@/request";
 import { DatabaseResponse, LLMResponse } from "@request/sql";
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
+import { PieChart, Pie, Cell, Legend } from "recharts";
 
 export default function Home() {
 
@@ -60,10 +61,21 @@ export default function Home() {
         </Collapse>
       </Paper>
       {/** 数据可视化部分 */}
-      <div>
+      <div className="py-10">
+        <div className="font-bold text-2xl">visualization: </div>
         {
           visualization && visualization.type === 'table' && (
             <TableDisplay columns={visualization.columns} data={executeResult as Record<string, string | number>[]} />
+          )
+        }
+        {
+          visualization && visualization.type === 'text' && (
+            <TextDisplay text={executeResult[0] as string} />
+          )
+        }
+        {
+          visualization && visualization.type === 'chart' && visualization?.chart?.chartType === 'pie' && (
+            <PieDisplay data={visualization.chart.data} />
           )
         }
       </div>
@@ -138,3 +150,34 @@ const TableDisplay = ({
     </TableContainer>
   )
 }
+
+const TextDisplay = ({ text }: { text: string }) => {
+  return (
+    <div>
+      {text}
+    </div>
+  )
+}
+
+const PieDisplay = ({ data }: { data: ChartDataPoint[] }) => {
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+
+  return (
+    <PieChart width={400} height={400}>
+      <Pie
+        data={data}
+        dataKey="value"
+        nameKey="label"
+        cx="50%"
+        cy="50%"
+        outerRadius={150}
+        label
+      >
+        {data.map((entry, index) => (
+          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+        ))}
+      </Pie>
+      <Legend />
+    </PieChart>
+  );
+};

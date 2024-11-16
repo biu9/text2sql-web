@@ -11,18 +11,69 @@ dotenv.config();
 
 const system_prompt = `
 Using valid SQLite, answer the following questions for the tables provided above. 
-Additionally, determine the best way to visualize the result: "table", "chart", or "text". 
-If the result is suitable for a table, provide the table's column definitions with their "dataIndex" and "name".
+Additionally, determine the best way to visualize the result based on the query outcome. The visualization type can be:
+1. "table": If the result is a tabular dataset. Provide column definitions with "dataIndex" and "name".
+2. "chart": If the result is better suited for a visual representation. Specify the chart type as either:
+   - "pie": For categorical data with associated numerical values. Provide data in the form of "label" and "value".
+   - "line": For time-series or trend data. Provide data points with "label" for the x-axis and "value" for the y-axis. Specify "xAxis" and "yAxis" keys for the corresponding chart axes.
+3. "text": For single-value outputs or narrative explanations.
 
-EXAMPLE JSON OUTPUT:
+Return the SQL query and the appropriate visualization configuration in JSON format. 
+
+EXAMPLE JSON OUTPUTS:
+
+1. Table visualization:
 {
-  "sql": "SELECT * FROM table_name WHERE column_name = 'value';",
+  "sql": "SELECT id, name, age FROM users WHERE age > 30;",
   "visualization": {
     "type": "table",
     "columns": [
-      { "dataIndex": "column1", "name": "Column 1" },
-      { "dataIndex": "column2", "name": "Column 2" }
+      { "dataIndex": "id", "name": "User ID" },
+      { "dataIndex": "name", "name": "Name" },
+      { "dataIndex": "age", "name": "Age" }
     ]
+  }
+}
+
+2. Pie chart visualization:
+{
+  "sql": "SELECT category, COUNT(*) as count FROM sales GROUP BY category;",
+  "visualization": {
+    "type": "chart",
+    "chart": {
+      "chartType": "pie",
+      "data": [
+        { "label": "Electronics", "value": 120 },
+        { "label": "Clothing", "value": 80 },
+        { "label": "Groceries", "value": 150 }
+      ]
+    }
+  }
+}
+
+3. Line chart visualization:
+{
+  "sql": "SELECT month, revenue FROM sales WHERE year = 2024;",
+  "visualization": {
+    "type": "chart",
+    "chart": {
+      "chartType": "line",
+      "data": [
+        { "label": "January", "value": 10000 },
+        { "label": "February", "value": 15000 },
+        { "label": "March", "value": 20000 }
+      ],
+      "xAxis": "label",
+      "yAxis": "value"
+    }
+  }
+}
+
+4. Text visualization:
+{
+  "sql": "SELECT COUNT(*) FROM users;",
+  "visualization": {
+    "type": "text"
   }
 }
 `;
@@ -52,6 +103,44 @@ export class SQLGenerator {
                   type: SchemaType.STRING,
                   enum: ["table", "chart", "text"],
                   description: "The recommended visualization type"
+                },
+                chart: {
+                  type: SchemaType.OBJECT,
+                  description: "Chart configuration, applicable when type is 'chart'",
+                  properties: {
+                    chartType: {
+                      type: SchemaType.STRING,
+                      enum: ["pie", "line"],
+                      description: "The type of chart to display"
+                    },
+                    data: {
+                      type: SchemaType.ARRAY,
+                      items: {
+                        type: SchemaType.OBJECT,
+                        properties: {
+                          label: {
+                            type: SchemaType.STRING,
+                            description: "The label for the chart data point"
+                          },
+                          value: {
+                            type: SchemaType.NUMBER,
+                            description: "The value for the chart data point"
+                          }
+                        },
+                        required: ["label", "value"]
+                      },
+                      description: "The data points for the chart"
+                    },
+                    xAxis: {
+                      type: SchemaType.STRING,
+                      description: "The key used for the x-axis (applicable for line charts)"
+                    },
+                    yAxis: {
+                      type: SchemaType.STRING,
+                      description: "The key used for the y-axis (applicable for line charts)"
+                    }
+                  },
+                  required: ["chartType", "data"]
                 },
                 columns: {
                   type: SchemaType.ARRAY,
@@ -204,7 +293,7 @@ export class SQLGenerator {
         rows: []
       }
 
-      const rows = await db.all(`SELECT * FROM ${curTable}`);
+      const rows = await db.all(`SELECT * FROM ${curTable} LIMIT 100`); // 加速接口返回
       if (rows.length > 0) {
         const columnNames = Object.keys(rows[0]);
         const values = rows.map(row => Object.values(row));
