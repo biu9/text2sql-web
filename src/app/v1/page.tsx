@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Button,
   TextField,
@@ -27,7 +27,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 
-import { GET, POST } from "@/request";
+import { POST } from "@/request";
 import {
   DatabaseResponse,
   LLMResponse,
@@ -59,35 +59,12 @@ export default function SQLGeneratorMUI() {
     TableSchemaDescription[] | null
   >(null);
 
-  useEffect(() => {
-    (async () => {
-      const res = await GET<
-        IGeneralResponse<DatabaseResponse<TableSchemaDescription>[] | string>
-      >("/api/showDatabaseStructure");
-      if (typeof res === "object") {
-        if (res.isOk) {
-          setDatabaseStructure(
-            (
-              res as IGeneralResponse<
-                DatabaseResponse<TableSchemaDescription>[]
-              >
-            ).data[0].table
-          );
-        }
-      }
-    })();
-  }, []);
-
-  const handleGenerate = async () => {
-    // 模拟API调用延迟
+  const handleGenerateMySQL = async () => {
     setIsLoading(true);
     const res = await POST<
-      { question: string },
-      IGeneralResponse<{
-        sql: string;
-        responseJson: LLMResponse;
-      }>
-    >("/api/generateSql", { question: input });
+      { question: string; dbConfig: { host: string; port: string; database: string; username: string; password: string } },
+      IGeneralResponse<{ sql: string; responseJson: LLMResponse }>
+    >("/api/generateMySQL", { question: input, dbConfig: { host: dbHost, port: dbPort, database: dbName, username: dbUsername, password: dbPassword } });
     if (typeof res === "object") {
       if (res.isOk) {
         setGeneratedSQL(res.data.sql);
@@ -95,22 +72,37 @@ export default function SQLGeneratorMUI() {
         setIsLoading(false);
       }
     }
-  };
+  }
 
-  const handleExecute = async () => {
+  const executeMySQLQuery = async () => {
     setIsLoading(true);
-    // 模拟API调用延迟
     const res = await POST<
-      { sql: string },
-      IGeneralResponse<{ sql: string; executeResult: unknown[] }>
-    >("/api/querySql", { sql: generatedSQL });
+      { sql: string; dbConfig: { host: string; port: string; database: string; username: string; password: string } },
+      IGeneralResponse<unknown[]>
+    >("/api/queryMySQL", { sql: generatedSQL, dbConfig: { host: dbHost, port: dbPort, database: dbName, username: dbUsername, password: dbPassword } });
     if (typeof res === "object") {
       if (res.isOk) {
-        setQueryResult(res.data.executeResult);
-        setIsLoading(false);
+        setQueryResult(res.data);
       }
     }
-  };
+    setIsLoading(false);
+  }
+
+  const getMysqlDatabaseSchema = async () => {
+    const res = await POST<unknown, IGeneralResponse<DatabaseResponse<TableSchemaDescription>[] | string>>('/api/showMysqlDatabaseSchema', {
+      host: dbHost,
+      port: dbPort,
+      database: dbName,
+      username: dbUsername,
+      password: dbPassword,
+    });
+
+    if (typeof res === 'object') {
+      if (res.isOk) {
+        setDatabaseStructure((res as IGeneralResponse<DatabaseResponse<TableSchemaDescription>[]>).data[0].table);
+      }
+    }
+  }
 
   const handleTestConnection = async () => {
     if (dbHost && dbPort && dbName && dbUsername && dbPassword) {
@@ -125,6 +117,7 @@ export default function SQLGeneratorMUI() {
       console.log(res);
       if (res.isOk) {
         setIsConnected(true);
+        getMysqlDatabaseSchema();
       } else {
         setIsConnected(false);
         alert('连接失败' + res.msg);
@@ -309,7 +302,7 @@ export default function SQLGeneratorMUI() {
                 <Button
                   fullWidth
                   variant="contained"
-                  onClick={handleGenerate}
+                  onClick={handleGenerateMySQL}
                   disabled={isLoading || !input}
                   color="primary"
                   size="large"
@@ -321,7 +314,7 @@ export default function SQLGeneratorMUI() {
                 <Button
                   fullWidth
                   variant="outlined"
-                  onClick={handleExecute}
+                  onClick={executeMySQLQuery}
                   disabled={isLoading || !generatedSQL}
                   color="secondary"
                   size="large"

@@ -3,11 +3,11 @@
 import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
 import { SQLGenerator } from "../../../utils/SQLGenerator";
-import { IGenerateRequest, IGeneralResponse } from "@request/api";
+import { IGeneralResponse } from "@request/api";
 import mysql from "mysql2/promise";
 
 export async function POST(request: NextRequest): Promise<NextResponse<IGeneralResponse>> {
-  const { question, dbConfig } = (await request.json()) as IGenerateRequest;
+  const { question, dbConfig } = (await request.json());
   const { host, port, database, username, password } = dbConfig;
 
   const generator = new SQLGenerator();

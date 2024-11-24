@@ -16,13 +16,6 @@ export default function Home() {
   const [visualization, setVisualization] = useState<LLMResponse['visualization'] | null>(null);
   const [open, setOpen] = useState(false);
 
-  // useEffect(() => {
-  //   (async () => {
-  //     const response = await GET<IGeneralResponse<DatabaseResponse[]>>('/api/showTable');
-  //     setData(response.data);
-  //   })()
-  // }, [])
-
   const handleGenerate = async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const response = await POST<IGenerateRequest, IGeneralResponse<any>>('/api/generate', { question });

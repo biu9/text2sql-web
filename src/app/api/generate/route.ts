@@ -15,9 +15,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<IGeneralR
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { question } = await request.json() as IGenerateRequest;
 
-  const generator = new SQLGenerator({
-    engine: ''
-  });
+  const generator = new SQLGenerator();
 
   const evalDataRaw = await fs.readFile(eval_path, 'utf-8');
   const evalData = JSON.parse(evalDataRaw) as EvalData[];
