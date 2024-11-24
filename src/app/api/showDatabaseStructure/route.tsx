@@ -12,9 +12,7 @@ const db_root_path = path.join(process.cwd(), 'public', 'data/dev_databases');
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function GET(request: NextRequest): Promise<NextResponse<IGeneralResponse<DatabaseResponse<TableSchemaDescription>[] | string>>> {
 
-  const generator = new SQLGenerator({
-    engine: 'code-davinci-002'
-  });
+  const generator = new SQLGenerator();
 
   const evalDataRaw = await fs.readFile(eval_path, 'utf-8');
   const evalData = JSON.parse(evalDataRaw) as EvalData[];

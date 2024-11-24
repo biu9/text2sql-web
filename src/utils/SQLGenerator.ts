@@ -5,7 +5,8 @@ import { open } from 'sqlite';
 import backoff from 'backoff';
 import dotenv from 'dotenv';
 import { GenerativeModel, GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
-import { SchemaDict, SqlResponse, Config, DatabaseResponse, TableDescription, LLMResponse, TableSchemaDescription } from '@request/sql';
+import { SchemaDict, SqlResponse, DatabaseResponse, TableDescription, LLMResponse, TableSchemaDescription } from '@request/sql';
+import mysql from "mysql2/promise";
 
 dotenv.config();
 
@@ -80,9 +81,8 @@ EXAMPLE JSON OUTPUTS:
 
 export class SQLGenerator {
   private gemini: GenerativeModel;
-  private engine: string;
 
-  constructor(config: Config) {
+  constructor() {
     const genAi = new GoogleGenerativeAI(process.env.API_KEY!);
     this.gemini = genAi.getGenerativeModel({
       model: "gemini-1.5-pro",
@@ -168,7 +168,6 @@ export class SQLGenerator {
         }
       }
     });
-    this.engine = config.engine;
   }
 
   private async newDirectory(path: string): Promise<void> {
@@ -320,21 +319,21 @@ export class SQLGenerator {
       database: dbId,
       table: []
     }
-  
+
     const tables = await db.all<{ name: string }[]>("SELECT name FROM sqlite_master WHERE type='table'");
-  
+
     for (const table of tables) {
       if (table.name === 'sqlite_sequence') continue;
-  
+
       const curTable = ['order', 'by', 'group'].includes(table.name)
         ? `\`${table.name}\``
         : table.name;
-  
+
       const tableInfo: TableSchemaDescription = {
         tableName: table.name,
         columns: []
       }
-  
+
       const columns = await db.all<{ name: string, type: string, notnull: number, dflt_value: string | null, pk: number }[]>(`PRAGMA table_info(${curTable})`);
       if (columns.length > 0) {
         tableInfo.columns = columns.map(col => ({
@@ -351,9 +350,46 @@ export class SQLGenerator {
         console.log('该表没有数据。');
       }
     }
-  
+
     await db.close();
-  
+
+    return res;
+  }
+
+  async showMysqlDatabaseSchema(connection: mysql.Connection, dbId: string): Promise<DatabaseResponse<TableSchemaDescription>> {
+    const res: DatabaseResponse<TableSchemaDescription> = {
+      database: dbId,
+      table: []
+    };
+
+    // 获取所有表名
+    const [tables] = await connection.query("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?", [dbId]) as [mysql.RowDataPacket[], mysql.FieldPacket[]];
+
+    for (const table of tables) {
+      const tableInfo: TableSchemaDescription = {
+        tableName: table.TABLE_NAME,
+        columns: []
+      };
+
+      // 获取表的列信息
+      const [columns] = await connection.query(`SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_KEY FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ? AND TABLE_SCHEMA = ?`, [table.TABLE_NAME, dbId]) as [{ COLUMN_NAME: string, COLUMN_TYPE: string, IS_NULLABLE: string, COLUMN_DEFAULT: string | null, COLUMN_KEY: string }[], mysql.FieldPacket[]];
+
+      if (columns.length > 0) {
+        tableInfo.columns = columns.map(col => ({
+          name: col.COLUMN_NAME,
+          type: col.COLUMN_TYPE,
+          constraints: [
+            col.COLUMN_KEY === 'PRI' ? 'PRIMARY KEY' : null,
+            col.IS_NULLABLE === 'NO' ? 'NOT NULL' : null,
+            col.COLUMN_DEFAULT ? `DEFAULT ${col.COLUMN_DEFAULT}` : null
+          ].filter(Boolean).join(' ')
+        }));
+        res.table.push(tableInfo);
+      } else {
+        console.log('该表没有数据。');
+      }
+    }
+
     return res;
   }
 
@@ -453,5 +489,49 @@ export class SQLGenerator {
     }
 
     return result;
+  }
+
+  // 生成数据库架构提示
+  async generateMySQLSchemaPrompt(connection: mysql.Connection, database: string): Promise<string> {
+    let schemaPrompt = '';
+    const [tables] = await connection.query(`SHOW TABLES FROM \`${database}\``);
+    interface TableObject {
+      [key: string]: string;
+    }
+
+    for (const tableObj of tables as TableObject[]) {
+      const tableName = tableObj[`Tables_in_${database}`];
+      schemaPrompt += `CREATE TABLE ${tableName} (\n`;
+      const [columns] = await connection.query(`SHOW COLUMNS FROM \`${tableName}\` FROM \`${database}\``);
+      const columnDefinitions = (columns as { Field: string, Type: string, Null: string, Key: string }[]).map(col => {
+        return `  ${col.Field} ${col.Type}${col.Null === 'NO' ? ' NOT NULL' : ''}${col.Key === 'PRI' ? ' PRIMARY KEY' : ''}`;
+      });
+      schemaPrompt += columnDefinitions.join(',\n');
+      schemaPrompt += `\n);\n\n`;
+    }
+    return schemaPrompt;
+  }
+
+  // 执行生成的 SQL 查询
+  async executeMySQLQuery(connection: mysql.Connection, sql: string): Promise<unknown[]> {
+    const [results] = await connection.query(sql);
+    return results as unknown[];
+  }
+
+  async collectMySqlResponseFromGPT(question: string, connection: mysql.Connection): Promise<LLMResponse | string | undefined> {
+    const prompt = await this.generateMySQLSchemaPrompt(connection, connection.config.database!);
+    const commentPrompt = this.generateCommentPrompt(question);
+    const fullPrompt = `${commentPrompt}\n${prompt}`;
+
+    console.log(`the full prompt is: ${fullPrompt}`);
+    try {
+      const result = JSON.parse(await this.connectGPT(fullPrompt) as string) as LLMResponse;
+      return result;
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error(`Error processing question:`, error);
+        return error.message;
+      }
+    }
   }
 }

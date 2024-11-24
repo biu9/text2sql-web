@@ -11,4 +11,14 @@ declare module "@request/api" {
   export interface IGenerateRequest {
     question: string
   }
+  export interface IGenerateRequest {
+    question: string;
+    dbConfig: {
+      host: string;
+      port: number;
+      database: string;
+      username: string;
+      password: string;
+    };
+  }
 }

@@ -112,12 +112,23 @@ export default function SQLGeneratorMUI() {
     }
   };
 
-  const handleTestConnection = () => {
-    // 这里应该是实际测试数据库连接的逻辑
-    // 为了演示，我们只是简单地检查所有字段是否都已填写
+  const handleTestConnection = async () => {
     if (dbHost && dbPort && dbName && dbUsername && dbPassword) {
-      setIsConnected(true);
-      // 在这里你应该调用后端 API 来实际测试连接
+      // setIsConnected(true);
+      const res = await POST<unknown, IGeneralResponse>('/api/testConnection', {
+        host: dbHost,
+        port: dbPort,
+        database: dbName,
+        username: dbUsername,
+        password: dbPassword,
+      });
+      console.log(res);
+      if (res.isOk) {
+        setIsConnected(true);
+      } else {
+        setIsConnected(false);
+        alert('连接失败' + res.msg);
+      }
     } else {
       setIsConnected(false);
     }
@@ -143,7 +154,7 @@ export default function SQLGeneratorMUI() {
                 aria-controls="database-connection-content"
                 id="database-connection-header"
               >
-                <Typography variant="h5">数据库连接配置(开发中)</Typography>
+                <Typography variant="h5">数据库连接配置-{isConnected ? '连接成功' : '未连接'}</Typography>
               </AccordionSummary>
               <AccordionDetails>
                 <Grid container spacing={2}>
